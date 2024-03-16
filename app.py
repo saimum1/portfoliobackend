@@ -45,7 +45,7 @@ class HomeDataImage(db.Model):
     linkurlmedia = db.Column(db.String(200))
 
 
-
+ 
 UPLOAD_FOLDER = 'uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -54,6 +54,10 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 def uploaded_file(filename):
     return send_from_directory(UPLOAD_FOLDER, filename)
 
+@app.route('/',methods=['GET']) 
+def home():
+    return render_template('home.html')    
+ 
 def save_image_to_folder(image_data, image_format):
     unique_filename = str(uuid.uuid4()) + '.' + image_format
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
