@@ -6,6 +6,9 @@ import uuid
 import base64
 import psycopg2 
 from sqlalchemy import text
+from dotenv import load_dotenv
+
+load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
@@ -44,47 +47,84 @@ class HomeDataImage(db.Model):
     image_url = db.Column(db.String(200))
     linkurlmedia = db.Column(db.String(200))
 
-
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('home.html')
  
-UPLOAD_FOLDER = 'uploads'
+
+
+
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')  
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Route to serve uploaded images
-@app.route('/upload/<filename>')
+# Create the uploads folder if it doesn't exist
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+    print(f"Created uploads folder at: {UPLOAD_FOLDER}")
+
+# Route to serve uploaded files
+@app.route('/uploads/<filename>')
 def uploaded_file(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    try:
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        print(f"Attempting to serve file from: {file_path}")
+        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    except Exception as e:
+        print(f"Error serving file {filename}: {str(e)}")
+        return jsonify({'error': f'File {filename} not found'}), 404
 
-@app.route('/',methods=['GET']) 
-def home():
-    return render_template('home.html')    
- 
+# Route for the home page
+
+
+# Function to save the image to the uploads folder
 def save_image_to_folder(image_data, image_format):
-    unique_filename = str(uuid.uuid4()) + '.' + image_format
+    unique_filename = f"{uuid.uuid4()}.{image_format.lower()}"  # Ensure lowercase extension
     file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-    with open(file_path, 'wb') as f:
-        f.write(image_data)
-    return unique_filename
+    try:
+        with open(file_path, 'wb') as f:
+            f.write(image_data)
+        print(f"Successfully saved image to: {file_path}")
+        return unique_filename
+    except Exception as e:
+        print(f"Error saving image: {str(e)}")
+        raise
 
+# Route to handle image uploads
 @app.route("/upload", methods=['POST'])
 def upload():
+    print("Received upload request")
+    
     if 'featuredPhoto' not in request.files:
-        return jsonify({'error': 'No file part'})
+        print("No file part in request")
+        return jsonify({'error': 'No file part'}), 400
 
     photo = request.files['featuredPhoto']
 
     if photo.filename == '':
-        return jsonify({'error': 'No selected file'})
+        print("No file selected")
+        return jsonify({'error': 'No selected file'}), 400
 
-    # Save the uploaded file
-    image_binary = photo.read()
-    image_format = photo.filename.split('.')[-1]
-    image_filename = save_image_to_folder(image_binary, image_format)
+    try:
+        image_binary = photo.read()
+        image_format = photo.filename.split('.')[-1].lower()  # Get the file extension
+        image_filename = save_image_to_folder(image_binary, image_format)
 
-    # Construct the image URL
-    base_url = request.base_url
-    image_url = f"upload/{image_filename}"
-    print('image url-------->',image_url)
-    return jsonify({'image_url': image_url})
+        # Construct the correct image URL for the frontend
+        image_url = f"uploads/{image_filename}"
+        print(f"Generated image URL: {image_url}")
+
+        return jsonify({'image_url': image_url}), 200
+    except Exception as e:
+        print(f"Error processing upload: {str(e)}")
+        return jsonify({'error': 'Failed to process upload'}), 500
+
+
+
+
+
 
 
 
@@ -121,12 +161,11 @@ def getdatax():
 
     userid=request.args.get('userid', None)
     print("------getting data-------",userid)
-    sql_query = f"""
-    SELECT * FROM postdata where cast(userid as integer) =:userid
-    ORDER BY created DESC
-    """
 
-    # Execute the SQL query
+
+    sql_query = text("""SELECT * FROM postdata 
+                 ORDER BY created DESC""")
+
     result = db.session.execute(sql_query,{"userid": userid})
 
     # Convert the result to a list of dictionaries for JSON serialization
@@ -144,77 +183,101 @@ def getdatax():
         }
         for row in result.fetchall()
     ]
-    # print('dataaa--------->',posts_data)
-    # Return the data as JSON
     return jsonify(posts_data)
 
-
-# @app.route("/update_selected", methods=['POST'])
-# def update_selected():
-#     # Get the list of post ids from the request
-#     try:
-#         post_ids= request.get_json(force=True)
-#         print('post ids--------->',post_ids) 
-#         Postdata.query.update({Postdata.selected: 'false'})
-#         db.session.commit()
-#         Postdata.query.filter(Postdata.postid.in_(post_ids)).update({Postdata.selected: 'true'})
-#         db.session.commit()
-#         return jsonify({'status':200}) 
-#     except :
-#          return jsonify({'status':500}) 
 @app.route("/update_selected", methods=['POST'])
 def update_selected():
-    # Get the list of post ids from the request
     try:
-        data= request.get_json(force=True)
-        post_ids = tuple(data['settleList'])
-        userid =str(data['userid'])
-        print("update list--- ---->",post_ids,userid)
-  
-        sql_query = """
-        UPDATE postdata 
-        SET selected = 'false'
-        WHERE userid=:userid; 
+        data = request.get_json(force=True)
+        post_ids = tuple(data['settleList'])  # Ensure it's a tuple for SQL IN clause
+        userid = str(data['userid'])
+        print("update list --->", post_ids)
+        # Corrected SQL Queries
+        sql_reset = text("UPDATE postdata SET selected = 'false' WHERE userid = :userid")
+        sql_update = text("UPDATE postdata SET selected = 'true' WHERE postid IN :post_ids")
 
-        UPDATE postdata
-        SET selected = 'true'
-        WHERE postid IN :post_ids
-        AND userid=:userid;  
-        """
         with db.engine.connect() as connection:
-             result = connection.execute(text(sql_query), userid=userid, post_ids=post_ids)
-
+            connection.execute(sql_reset, {"userid": userid})
+            if post_ids: 
+                connection.execute(sql_update, {"post_ids": post_ids})
+            connection.commit()
 
         print("Rows updated successfully")
-        return jsonify({'status':200})
-    except :
-         return jsonify({'status':500})
+        return jsonify({'status': 200})
     
+    except Exception as e:
+        print("Error updating posts:", str(e))
+        return jsonify({'status': 500, 'error': str(e)})
+
+
+
+# @app.route("/delete_item", methods=['POST'])
+# def delete_item():
+#     # Retrieve the post from the database based on the post_id
+#     try:    
+            
+#             print("item to delete------->")
+
+#             data = request.get_json(force=True)
+#             post_id=data['id']
+#             userid=str(data['userid']) 
+#             print("item to delete------->",post_id)
+#             post = Postdata.query.filter_by(postid=post_id).filter_by(userid=userid).first()
+
+#             if not post:
+#                 return jsonify({'error': 'Post not found'}), 404
+
+#             # Delete the post from the database
+#             db.session.delete(post)
+#             db.session.commit()
+
+#             return jsonify({'status':200})
+#     except :
+#          return jsonify({'status':500})
 
 @app.route("/delete_item", methods=['POST'])
 def delete_item():
-    # Retrieve the post from the database based on the post_id
-    try:    
-            
-            print("item to delete------->")
+    try:
+        print("Received delete request")
+        data = request.get_json(force=True)
+        post_id = data['id']
+        userid = str(data['userid'])
+        print(f"Item to delete: post_id={post_id}, userid={userid}")
 
-            data = request.get_json(force=True)
-            post_id=data['id']
-            userid=str(data['userid']) 
-            print("item to delete------->",post_id)
-            post = Postdata.query.filter_by(postid=post_id).filter_by(userid=userid).first()
+        # Retrieve the post from the database
+        post = Postdata.query.filter_by(postid=post_id, userid=userid).first()
 
-            if not post:
-                return jsonify({'error': 'Post not found'}), 404
+        if not post:
+            print("Post not found in database")
+            return jsonify({'error': 'Post not found'}), 404
 
-            # Delete the post from the database
-            db.session.delete(post)
-            db.session.commit()
+        # Handle image deletion
+        if post.imageurl:
+            # Extract the filename from the imageurl (e.g., 'uploads/829108c7-d511-4c2a-aff0-522d3382c307.png')
+            image_filename = os.path.basename(post.imageurl)
+            image_path = os.path.join(app.config['UPLOAD_FOLDER'], image_filename)
+            print(f"Attempting to delete image: {image_path} (absolute path: {os.path.abspath(image_path)})")
 
-            return jsonify({'status':200})
-    except :
-         return jsonify({'status':500})
+            # Check if the image file exists and delete it
+            if os.path.exists(image_path):
+                os.remove(image_path)
+                print(f"Image deleted successfully: {image_path}")
+            else:
+                print(f"Image file not found at: {image_path}")
+                # You might want to decide if this should return an error or continue
+                # For now, we'll log and continue, but you can modify this behavior
 
+        # Delete the post from the database
+        db.session.delete(post)
+        db.session.commit()
+        print(f"Post deleted successfully: post_id={post_id}")
+
+        return jsonify({'status': 200, 'message': 'Post and associated image deleted successfully'})
+
+    except Exception as e:
+        db.session.rollback()  # Rollback the database session in case of error
+        print(f"Error deleting item: {str(e)}")
+        return jsonify({'status': 500, 'error': str(e)}), 500
 
 
 @app.route("/update_item", methods=['POST'])
