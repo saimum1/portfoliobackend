@@ -124,10 +124,6 @@ def upload():
 
 
 
-
-
-
-
 @app.route("/getdata", methods = ['POST'])
 def getdata():
     try:
@@ -210,31 +206,6 @@ def update_selected():
         return jsonify({'status': 500, 'error': str(e)})
 
 
-
-# @app.route("/delete_item", methods=['POST'])
-# def delete_item():
-#     # Retrieve the post from the database based on the post_id
-#     try:    
-            
-#             print("item to delete------->")
-
-#             data = request.get_json(force=True)
-#             post_id=data['id']
-#             userid=str(data['userid']) 
-#             print("item to delete------->",post_id)
-#             post = Postdata.query.filter_by(postid=post_id).filter_by(userid=userid).first()
-
-#             if not post:
-#                 return jsonify({'error': 'Post not found'}), 404
-
-#             # Delete the post from the database
-#             db.session.delete(post)
-#             db.session.commit()
-
-#             return jsonify({'status':200})
-#     except :
-#          return jsonify({'status':500})
-
 @app.route("/delete_item", methods=['POST'])
 def delete_item():
     try:
@@ -264,9 +235,6 @@ def delete_item():
                 print(f"Image deleted successfully: {image_path}")
             else:
                 print(f"Image file not found at: {image_path}")
-                # You might want to decide if this should return an error or continue
-                # For now, we'll log and continue, but you can modify this behavior
-
         # Delete the post from the database
         db.session.delete(post)
         db.session.commit()
@@ -285,8 +253,6 @@ def update_item():
     try:
             # Parse the JSON data from the request body
             data = request.get_json(force=True)
-            # print("requested update------->",data)
-            # Extract the data for updating the item
             postid = data.get('id') 
             userid = str(data.get('userid') )
             title = data.get('title')
@@ -299,14 +265,12 @@ def update_item():
             color =  data.get('color')
 
 
-            # Retrieve the item from the database based on the postid
             item = Postdata.query.filter_by(postid=postid).filter_by(userid=userid).first()
 
             # Check if the item exists
             if not item:
                 return jsonify({'error': 'Item not found'}), 404
 
-            # Update the attributes of the item with the new values
             item.title = title
             item.description = description
             item.content = content
@@ -347,18 +311,6 @@ def insert_data():
                     user_data.logourl = new_post['logourl']
                     db.session.commit()
                     home_id = user_data.id
-                
-                # Insert data into HomeDataImage
-                # for updated_item in new_post['featuredPhoto']:
-                #     image_data = HomeDataImage.query.filter_by(userid='1', homeid=str(home_id)).first()
-                #     if not image_data:
-                #         new_image_data = HomeDataImage(userid='1', homeid=str(home_id), image_url=updated_item['imageprevurl'], linkurlmedia=updated_item['linkUrl'])
-                #         db.session.add(new_image_data)
-                #     else:
-                #         image_data.image_url = updated_item['imageprevurl']
-                #         image_data.linkurlmedia = updated_item['linkUrl']
-                # db.session.commit()
-                    
                 HomeDataImage.query.filter_by(userid='1').delete()
                 db.session.commit()
  
@@ -373,32 +325,19 @@ def insert_data():
 
 
 
-@app.route('/userdata/<userid>', methods=['GET'])
-def get_user_data(userid):
-    # Query HomeData table
-    home_data = HomeData.query.filter_by(userid=userid).first()
-    if not home_data:
-        return jsonify({'message': 'User data not found'}), 404
+@app.route('/userdata', methods=['GET'])
+def get_user_data():
+    sql_query = text("SELECT * FROM homedata")
+    sql_query2=text("SELECT * FROM homedataimage")
+    with db.engine.connect() as connection:
+        result = connection.execute(sql_query) 
+        result2 = connection.execute(sql_query2) 
+        data = [dict(row) for row in result.mappings()]  
+        data2 = [dict(row) for row in result2.mappings()]  
+        alldata={'profile':data,'media':data2}
 
-    # Query HomeDataImage table
-    home_data_images = HomeDataImage.query.filter_by(userid=userid, homeid=str(home_data.id)).all()
-
-    # Serialize data
-    home_data_json = {
-        'id': home_data.id,
-        'userid': home_data.userid,
-        'titlefirst': home_data.titlefirst,
-        'titlesecond': home_data.titlesecond,
-        'linkurlcv': home_data.linkurlcv,
-        'logourl': home_data.logourl,
-        'images': [{
-            'id': image.id,
-            'image_url': image.image_url,
-            'linkurlmedia': image.linkurlmedia
-        } for image in home_data_images]
-    }
-
-    return jsonify(home_data_json)
+    print("----data----", alldata) 
+    return jsonify(alldata)  
 
 
 
