@@ -76,8 +76,6 @@ def uploaded_file(filename):
         print(f"Error serving file {filename}: {str(e)}")
         return jsonify({'error': f'File {filename} not found'}), 404
 
-# Route for the home page
-
 
 # Function to save the image to the uploads folder
 def save_image_to_folder(image_data, image_format):
