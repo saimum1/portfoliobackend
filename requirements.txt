@@ -26,6 +26,7 @@ itsdangerous
 pymongo
 # Add this to your requirements.txt
 gunicorn==21.2.0
+uvicorn
 
 
 
