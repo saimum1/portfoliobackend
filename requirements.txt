@@ -7,7 +7,7 @@ flask-sqlalchemy
 marshmallow 
 flask-marshmallow 
 marshmallow-sqlalchemy 
-psycopg2 == 2.8.6
+# psycopg2 == 2.8.6
 psycopg2-binary
 flask-bcrypt 
 Flask-Uploads 
