@@ -6,6 +6,11 @@ import uuid
 import base64
 import psycopg2 
 from sqlalchemy import text
+
+import cloudinary
+import cloudinary.uploader
+from cloudinary.utils import cloudinary_url
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,8 +18,9 @@ app = Flask(__name__)
 CORS(app)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("SQLALCHEMY_DATABASE_URI")
-
 db = SQLAlchemy(app)
+
+
 
 class Postdata(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -55,6 +61,15 @@ def home():
 
 
 
+
+# Cloudinary configuration
+cloudinary.config(
+    cloud_name=os.environ.get("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.environ.get("CLOUDINARY_API_KEY"),
+    api_secret=os.environ.get("CLOUDINARY_API_SECRET")
+)
+
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
 UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')  
 
@@ -66,60 +81,109 @@ if not os.path.exists(UPLOAD_FOLDER):
     print(f"Created uploads folder at: {UPLOAD_FOLDER}")
 
 # Route to serve uploaded files
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    try:
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        print(f"Attempting to serve file from: {file_path}")
-        return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-    except Exception as e:
-        print(f"Error serving file {filename}: {str(e)}")
-        return jsonify({'error': f'File {filename} not found'}), 404
+# @app.route('/uploads/<filename>')
+# def uploaded_file(filename):
+#     try:
+#         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+#         print(f"Attempting to serve file from: {file_path}")
+#         return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+#     except Exception as e:
+#         print(f"Error serving file {filename}: {str(e)}")
+#         return jsonify({'error': f'File {filename} not found'}), 404
 
 
-# Function to save the image to the uploads folder
-def save_image_to_folder(image_data, image_format):
-    unique_filename = f"{uuid.uuid4()}.{image_format.lower()}"  # Ensure lowercase extension
-    file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-    try:
-        with open(file_path, 'wb') as f:
-            f.write(image_data)
-        print(f"Successfully saved image to: {file_path}")
-        return unique_filename
-    except Exception as e:
-        print(f"Error saving image: {str(e)}")
-        raise
+# # Function to save the image to the uploads folder
+# def save_image_to_folder(image_data, image_format):
+#     unique_filename = f"{uuid.uuid4()}.{image_format.lower()}"  # Ensure lowercase extension
+#     file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+#     try:
+#         with open(file_path, 'wb') as f:
+#             f.write(image_data)
+#         print(f"Successfully saved image to: {file_path}")
+#         return unique_filename
+#     except Exception as e:
+#         print(f"Error saving image: {str(e)}")
+#         raise
 
 # Route to handle image uploads
-@app.route("/upload", methods=['POST'])
-def upload():
-    print("Received upload request")
+# @app.route("/upload", methods=['POST'])
+# def upload():
+#     print("Received upload request")
     
+#     if 'featuredPhoto' not in request.files:
+#         print("No file part in request")
+#         return jsonify({'error': 'No file part'}), 400
+
+#     photo = request.files['featuredPhoto']
+
+#     if photo.filename == '':
+#         print("No file selected")
+#         return jsonify({'error': 'No selected file'}), 400
+
+#     try:
+#         image_binary = photo.read()
+#         image_format = photo.filename.split('.')[-1].lower()  # Get the file extension
+#         image_filename = save_image_to_folder(image_binary, image_format)
+
+#         # Construct the correct image URL for the frontend
+#         image_url = f"uploads/{image_filename}"
+#         print(f"Generated image URL: {image_url}")
+
+#         return jsonify({'image_url': image_url}), 200
+#     except Exception as e:
+#         print(f"Error processing upload: {str(e)}")
+#         return jsonify({'error': 'Failed to process upload'}), 500
+
+
+@app.route("/upload", methods=['POST']) 
+def upload_image():
     if 'featuredPhoto' not in request.files:
         print("No file part in request")
-        return jsonify({'error': 'No file part'}), 400
+        return jsonify({'error': 'No file uploaded'}), 400
 
     photo = request.files['featuredPhoto']
+
+
+# Debug environment variables
+    print("Cloudinary Config:")
+    print(f"CLOUD_NAME: {os.environ.get('CLOUDINARY_CLOUD_NAME')}")
+    print(f"API_KEY: {os.environ.get('CLOUDINARY_API_KEY')}")
+    print(f"API_SECRET: {os.environ.get('CLOUDINARY_API_SECRET')}")
 
     if photo.filename == '':
         print("No file selected")
         return jsonify({'error': 'No selected file'}), 400
 
     try:
-        image_binary = photo.read()
-        image_format = photo.filename.split('.')[-1].lower()  # Get the file extension
-        image_filename = save_image_to_folder(image_binary, image_format)
+        print(f"Received file: {photo.filename}")
+        # Upload the file to Cloudinary
+        upload_result = cloudinary.uploader.upload(
+            photo,
+            folder="uploads",  # Optional: organize uploads in a folder
+            resource_type="image",
+            use_filename=True,
+            unique_filename=True
+        )
+        image_url = upload_result.get("secure_url")
+        print(f"Uploaded to Cloudinary: {image_url}")
 
-        # Construct the correct image URL for the frontend
-        image_url = f"uploads/{image_filename}"
-        print(f"Generated image URL: {image_url}")
+        # # Optionally, optimize the image URL
+        # optimize_url, _ = cloudinary_url(
+        #     upload_result["public_id"],
+        #     fetch_format="auto",
+        #     quality="auto",
+        #     width=500,
+        #     height=500,
+        #     crop="auto",
+        #     gravity="auto"
+        # )
+        # print(f"Optimized URL: {optimize_url}")
 
         return jsonify({'image_url': image_url}), 200
     except Exception as e:
-        print(f"Error processing upload: {str(e)}")
-        return jsonify({'error': 'Failed to process upload'}), 500
-
-
+        print(f"Error uploading to Cloudinary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+    
 
 
 @app.route("/getdata", methods = ['POST'])
