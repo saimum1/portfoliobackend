@@ -24,3 +24,5 @@ itsdangerous
 pymongo
 gunicorn==21.2.0 
 cloudinary
+openai-whisper==20240930
+nltk==3.8.1
