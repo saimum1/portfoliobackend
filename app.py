@@ -12,7 +12,6 @@ import cloudinary.uploader
 from cloudinary.utils import cloudinary_url
 
 from dotenv import load_dotenv
-from transcriber import transcribe_file
 
 load_dotenv()
 app = Flask(__name__)
@@ -402,47 +401,6 @@ def get_user_data():
     print("----data----", alldata) 
     return jsonify(alldata)  
 
-
-
-
-
-
-@app.route("/transcribe", methods=['POST'])
-def transcribe():
-    if 'file' not in request.files:
-        print("No file part in request")
-        return jsonify({'error': 'No file uploaded'}), 400
-
-    file = request.files['file']
-    if file.filename == '':
-        print("No file selected")
-        return jsonify({'error': 'No selected file'}), 400
-
-    try:
-        allowed_extensions = {'mp3', 'wav', 'm4a', 'mp4', 'mpeg', 'ogg'}
-        file_ext = os.path.splitext(file.filename)[1][1:].lower()
-        if file_ext not in allowed_extensions:
-            return jsonify({'error': 'Invalid file type. Only .mp3, .wav, .m4a, .mp4, .mpeg, .ogg are allowed.'}), 400
-
-        unique_filename = f"{uuid.uuid4()}.{file_ext}"
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(file_path)
-        print(f"Saved file to: {file_path}")
-        transcription = transcribe_file(file_path)
-
-        if transcription in ['No file selected', 'Unsupported file format', 'error']:
-            return jsonify({'error': transcription if transcription != 'error' else 'Transcription failed'}), 400
-
-        print(f"Transcription completed: {transcription}")
-        return jsonify({'transcript': transcription}), 200
-    except Exception as e:
-        print(f"Error processing transcription: {str(e)}")
-        return jsonify({'error': str(e)}), 500
-    finally:
-        # Clean up temporary file
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            print(f"Removed temporary file: {file_path}")
 
 
 
