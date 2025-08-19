@@ -436,8 +436,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# MongoDB configuration
-# mongo_uri ="mongodb+srv://sam1810:saimum12@portfolio.vrfbu.mongodb.net/portfolio_db?retryWrites=true&w=majority&appName=portfolio"
+
 mongo_uri =os.environ.get("MONGO_URI")
 
 logger.info(f"Using MongoDB URI: {mongo_uri}")
