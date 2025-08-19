@@ -24,3 +24,4 @@ itsdangerous
 pymongo
 gunicorn==21.2.0 
 cloudinary
+flask-pymongo
