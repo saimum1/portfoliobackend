@@ -567,7 +567,7 @@ def get_user_data():
 
     for post in posts2:
         post_list2.append({
-            "id": post['id'],
+            "id": str(post.get('id', post.get('_id'))), 
             "userid": post['userid'],
             "homeid": post['homeid'],
             "image_url": post['image_url'],
