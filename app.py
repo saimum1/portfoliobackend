@@ -425,7 +425,7 @@ import cloudinary
 import cloudinary.uploader
 from dotenv import load_dotenv
 import logging
-
+from datetime import datetime
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -507,7 +507,9 @@ def getdata():
             "category": data['category'],
             "selected": data['selected'],
             "imageurl": data['featuredPhoto'],
-            "color": data['color']
+            "color": data['color'],
+            "livelink": data['livelink'],
+            "gitlink": data['gitlink']
         }
         mongo.db.postdata.insert_one(new_post)
         return jsonify({'status': 200})
@@ -532,7 +534,9 @@ def getdatax():
                 "category": post['category'],
                 "selected": post['selected'],
                 "image_url": post['imageurl'],
-                "color": post['color']
+                "color": post['color'],
+                "livelink": post.get('livelink', ""),
+                "gitlink": post.get('gitlink', "")
             })
         return jsonify(post_list)
     except Exception as e:
@@ -636,7 +640,9 @@ def update_item():
             "category": data['category'],
             "selected": data['selected'],
             "imageurl": data['featuredPhoto'],
-            "color": data['color']
+            "color": data['color'],
+            "livelink": data['livelink'],
+                "gitlink": data['gitlink']
         }
         result = mongo.db.postdata.update_one(
             {"postid": data['id'], "userid": str(data['userid'])},
@@ -649,9 +655,76 @@ def update_item():
         logger.error(f"Update error: {e}")
         return jsonify({'status': 500, 'error': str(e)}), 500
 
+
+ 
+@app.route('/posthomedata', methods=['POST']) 
+def insert_data():
+    try:
+        print("as dfsds sds------->>>>>>       ")
+        new_post = request.get_json(force=True)
+        userid = "1"   # keep consistent (string vs int)
+
+        print("Incoming data:", new_post)
+
+        # Check if user exists
+        user_data = mongo.db.homedata.find_one({"userid": userid})
+
+        if not user_data:
+            print("No user found, inserting new")
+            result = mongo.db.homedata.insert_one({
+                "userid": userid,
+                "titlefirst": new_post['titlefirst'],
+                "titlesecond": new_post['titlesecond'],
+                "linkurlcv": new_post['linkurlcv'],
+                "logourl": new_post['logourl'],
+                "created": datetime.utcnow()
+            })
+            home_id = str(result.inserted_id)
+        else:
+            print("User found, updating")
+            result = mongo.db.homedata.update_one(
+                {"userid": userid},
+                {"$set": {
+                    "titlefirst": new_post['titlefirst'],
+                    "titlesecond": new_post['titlesecond'],
+                    "linkurlcv": new_post['linkurlcv'],
+                    "logourl": new_post['logourl'],
+                    "updated": datetime.utcnow()
+                }}
+            )
+            print("Matched:", result.matched_count, "Modified:", result.modified_count)
+            home_id = str(user_data["_id"])
+
+        # Replace media
+        mongo.db.homedataimage.delete_many({"userid": userid})
+        print("Deleted old media")
+
+        images = []
+        for updated_item in new_post.get('featuredPhoto', []):
+            images.append({
+                "userid": userid,
+                "homeid": home_id,
+                "image_url": updated_item.get('imageprevurl'),
+                "linkurlmedia": updated_item.get('linkUrl'),
+                "created": datetime.utcnow()
+            })
+
+        if images:
+            mongo.db.homedataimage.insert_many(images)
+            print("Inserted media:", len(images))
+        else:
+            print("No media to insert")
+
+        return jsonify({'status': 200})
+
+    except Exception as e:
+        print("Error in /posthomedata:", e)
+        return jsonify({'status': 500})
+
+
+
+
+
 if __name__ == "__main__":
     app.run(debug=True)
  
-
-
-
